@@ -54,7 +54,7 @@
 ```bash
 # (сокращённый пример, полный в скрипте)
 sudo apt update
-sudo apt install -y nmap smbclient smbmap hashcat john bloodhound neo4j crackmapexec evil-winrm responder python3-impacket python3-pip pipx golang git
+sudo apt install -y nmap smbclient smbmap hashcat john neo4j evil-winrm responder python3-impacket python3-pip pipx golang git
 python3 -m pip install --user pipx || true
 python3 -m pipx ensurepath || true
 export PATH="$HOME/.local/bin:$PATH"

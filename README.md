@@ -254,4 +254,4 @@ python3 secretsdump.py domain/administrator:Pass@dc
 
 ---
 
-См. также: [Cheatsheet — быстрые команды](./cheatsheet_active_directory.md)
+См. также: [Cheatsheet — быстрые команды](./Cheatsheet.md)

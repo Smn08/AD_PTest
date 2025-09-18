@@ -228,4 +228,4 @@ python3 secretsdump.py domain/administrator:Pass@dc
 
 ---
 
-См. также: [Cheatsheet — быстрые команды](./cheatsheet.md)
+См. также: [Cheatsheet — быстрые команды](./Cheatsheet.md)
